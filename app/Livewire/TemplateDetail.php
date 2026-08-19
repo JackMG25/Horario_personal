@@ -4,6 +4,8 @@ namespace App\Livewire;
 
 use App\Models\Template;
 use App\Services\RoutineCopyService;
+use App\Support\ScheduleTimes;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
@@ -24,6 +26,44 @@ class TemplateDetail extends Component
             'activities' => fn ($query) => $query->orderBy('position')->orderBy('id'),
         ]);
         $this->fecha ??= now()->toDateString();
+    }
+
+    public function reorder(array $order): void
+    {
+        $this->template->load([
+            'activities' => fn ($query) => $query->orderBy('position')->orderBy('id'),
+        ]);
+
+        $validIds = $this->template->activities->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $order = array_values(array_unique(array_map('intval', $order)));
+
+        $sortedValid = $validIds;
+        $sortedOrder = $order;
+        sort($sortedValid);
+        sort($sortedOrder);
+
+        if ($sortedOrder !== $sortedValid) {
+            $this->dispatch('notify', message: 'No se pudo actualizar el orden.');
+
+            return;
+        }
+
+        $byId = $this->template->activities->keyBy('id');
+        $ordered = [];
+
+        foreach ($order as $id) {
+            $ordered[] = $byId[$id];
+        }
+
+        DB::transaction(function () use ($ordered) {
+            ScheduleTimes::redistributeByOrder($ordered);
+        });
+
+        $this->template->refresh()->load([
+            'activities' => fn ($query) => $query->orderBy('position')->orderBy('id'),
+        ]);
+
+        $this->dispatch('notify', message: 'Orden actualizado');
     }
 
     public function apply(): void

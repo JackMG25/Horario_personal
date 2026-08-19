@@ -7,6 +7,7 @@ use App\Livewire\ActivityForm;
 use App\Livewire\CopyDay;
 use App\Livewire\DailyRoutine;
 use App\Livewire\TemplateDetail;
+use App\Livewire\TemplateForm;
 use App\Models\Activity;
 use App\Models\Day;
 use App\Models\Template;
@@ -233,5 +234,43 @@ class RoutineTest extends TestCase
         $this->assertSame('Día libre (copia)', $copy->name);
         $this->assertSame($template->activities()->count(), $copy->activities()->count());
         $this->assertNotSame($template->id, $copy->id);
+    }
+
+    public function test_template_form_chains_times_from_the_first_activity(): void
+    {
+        $component = Livewire::test(TemplateForm::class)
+            ->set('items.0.name', 'Devocional')
+            ->set('items.0.icon', 'sun')
+            ->set('items.0.start_time', '06:00')
+            ->set('items.0.duration_minutes', 60)
+            ->call('addItem');
+
+        $items = $component->get('items');
+
+        $this->assertSame('06:00', $items[0]['start_time']);
+        $this->assertSame('07:00', $items[1]['start_time']);
+    }
+
+    public function test_template_form_reorders_times_with_the_list(): void
+    {
+        $component = Livewire::test(TemplateForm::class)
+            ->set('items.0.name', 'Devocional')
+            ->set('items.0.icon', 'sun')
+            ->set('items.0.start_time', '06:00')
+            ->set('items.0.duration_minutes', 60)
+            ->call('addItem')
+            ->set('items.1.name', 'Ejercicio')
+            ->set('items.1.icon', 'fire')
+            ->set('items.1.duration_minutes', 30)
+            ->call('reorderItems', [1, 0]);
+
+        $items = $component->get('items');
+
+        $this->assertSame('Ejercicio', $items[0]['name']);
+        $this->assertSame('06:00', $items[0]['start_time']);
+        $this->assertSame(30, (int) $items[0]['duration_minutes']);
+        $this->assertSame('Devocional', $items[1]['name']);
+        $this->assertSame('06:30', $items[1]['start_time']);
+        $this->assertSame(60, (int) $items[1]['duration_minutes']);
     }
 }

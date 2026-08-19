@@ -32,7 +32,7 @@ class ScheduleTimes
         return self::toMinutes($start) + $duration <= 24 * 60;
     }
 
-    public static function durationOf(Activity $activity): int
+    public static function durationOf(object $activity): int
     {
         if ($activity->duration_minutes) {
             return (int) $activity->duration_minutes;
@@ -54,7 +54,7 @@ class ScheduleTimes
      * Encadena horas sin cambiar el orden: cada actividad empieza
      * cuando termina la anterior, conservando su duración.
      *
-     * @param  list<Activity>  $activitiesInOrder
+     * @param  list<Activity|TemplateActivity>  $activitiesInOrder
      */
     public static function rechainTimes(array $activitiesInOrder, ?string $anchorStart = null): void
     {
@@ -147,5 +147,77 @@ class ScheduleTimes
             ->all();
 
         self::rechainTimes($activities);
+    }
+
+    public static function endTime(string $start, int $duration): string
+    {
+        $start = substr($start, 0, 5);
+        $endMinutes = self::toMinutes($start !== '' ? $start : '08:00') + max(0, $duration);
+
+        return self::fromMinutes($endMinutes);
+    }
+
+    /**
+     * Encadena horas de un arreglo (formulario de plantillas).
+     * Si la primera empieza a las 06:00 y dura 1 h, la siguiente pasa a las 07:00.
+     *
+     * @param  list<array<string, mixed>>  $items
+     * @return list<array<string, mixed>>
+     */
+    public static function rechainItemTimes(array $items, int $fromIndex = 0, ?string $anchorStart = null): array
+    {
+        if ($items === [] || ! isset($items[$fromIndex])) {
+            return $items;
+        }
+
+        $start = $anchorStart
+            ?? (isset($items[$fromIndex]['start_time']) ? substr((string) $items[$fromIndex]['start_time'], 0, 5) : null)
+            ?? '08:00';
+
+        $cursor = self::toMinutes($start !== '' ? $start : '08:00');
+
+        for ($index = $fromIndex, $total = count($items); $index < $total; $index++) {
+            $duration = (int) ($items[$index]['duration_minutes'] ?? 30);
+
+            if ($duration <= 0) {
+                $duration = 30;
+            }
+
+            $endMinutes = $cursor + $duration;
+
+            if ($endMinutes > 24 * 60) {
+                $endMinutes = 24 * 60;
+                $duration = max(5, $endMinutes - $cursor);
+            }
+
+            $items[$index]['start_time'] = self::fromMinutes($cursor);
+            $items[$index]['duration_minutes'] = $duration;
+            $cursor = $endMinutes;
+        }
+
+        return $items;
+    }
+
+    /**
+     * Al reordenar, mantiene la hora más temprana y encadena el resto.
+     *
+     * @param  list<array<string, mixed>>  $items
+     * @return list<array<string, mixed>>
+     */
+    public static function redistributeItemTimes(array $items): array
+    {
+        $starts = [];
+
+        foreach ($items as $item) {
+            $start = substr((string) ($item['start_time'] ?? ''), 0, 5);
+
+            if ($start !== '') {
+                $starts[] = self::toMinutes($start);
+            }
+        }
+
+        $anchor = $starts !== [] ? self::fromMinutes(min($starts)) : '08:00';
+
+        return self::rechainItemTimes($items, 0, $anchor);
     }
 }

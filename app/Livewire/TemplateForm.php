@@ -6,6 +6,7 @@ use App\Http\Requests\StoreTemplateRequest;
 use App\Models\Activity;
 use App\Models\Template;
 use App\Support\IconCatalog;
+use App\Support\ScheduleTimes;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
@@ -25,6 +26,8 @@ class TemplateForm extends Component
     public string $color = 'blue';
 
     public array $items = [];
+
+    public bool $syncingTimes = false;
 
     #[Url]
     public ?string $fecha = null;
@@ -86,11 +89,21 @@ class TemplateForm extends Component
             return;
         }
 
+        $start = '08:00';
+
+        if ($this->items !== []) {
+            $previous = $this->items[array_key_last($this->items)];
+            $start = ScheduleTimes::endTime(
+                (string) ($previous['start_time'] ?? '08:00'),
+                (int) ($previous['duration_minutes'] ?? 30),
+            );
+        }
+
         $this->items[] = [
             'name' => '',
             'description' => '',
             'icon' => 'sparkles',
-            'start_time' => '08:00',
+            'start_time' => $start,
             'duration_minutes' => 30,
         ];
     }
@@ -105,6 +118,7 @@ class TemplateForm extends Component
 
         unset($this->items[$index]);
         $this->items = array_values($this->items);
+        $this->items = ScheduleTimes::rechainItemTimes($this->items, 0);
     }
 
     public function reorderItems(array $order): void
@@ -117,9 +131,35 @@ class TemplateForm extends Component
             }
         }
 
-        if (count($reordered) === count($this->items)) {
-            $this->items = $reordered;
+        if (count($reordered) !== count($this->items)) {
+            return;
         }
+
+        $this->items = ScheduleTimes::redistributeItemTimes($reordered);
+    }
+
+    public function updated(string $property): void
+    {
+        if ($this->syncingTimes) {
+            return;
+        }
+
+        if (preg_match('/^items\.(\d+)\.(start_time|duration_minutes)$/', $property, $matches) !== 1) {
+            return;
+        }
+
+        $index = (int) $matches[1];
+
+        if (! isset($this->items[$index])) {
+            return;
+        }
+
+        $this->items[$index]['start_time'] = substr((string) ($this->items[$index]['start_time'] ?? '08:00'), 0, 5);
+        $this->items[$index]['duration_minutes'] = (int) ($this->items[$index]['duration_minutes'] ?? 30);
+
+        $this->syncingTimes = true;
+        $this->items = ScheduleTimes::rechainItemTimes($this->items, $index);
+        $this->syncingTimes = false;
     }
 
     public function save(): void
@@ -128,6 +168,12 @@ class TemplateForm extends Component
             StoreTemplateRequest::ruleList($this->templateId),
             StoreTemplateRequest::messageList(),
             StoreTemplateRequest::attributeList(),
+        );
+
+        $data['items'] = ScheduleTimes::rechainItemTimes(
+            $data['items'],
+            0,
+            substr((string) ($data['items'][0]['start_time'] ?? '08:00'), 0, 5),
         );
 
         $template = DB::transaction(function () use ($data) {

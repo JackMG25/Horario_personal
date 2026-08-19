@@ -32,9 +32,12 @@
             @endif
         </div>
 
-        <div class="space-y-2.5">
+        <div data-sortable data-sortable-method="reorder" class="space-y-2.5">
             @forelse ($template->activities as $activity)
-                <div class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-3">
+                <div data-id="{{ $activity->id }}" wire:key="template-activity-{{ $activity->id }}" class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-3">
+                    <button type="button" class="drag-handle shrink-0 cursor-grab touch-none text-slate-300" aria-label="Arrastrar">
+                        <x-heroicon-o-bars-3 class="h-5 w-5" />
+                    </button>
                     <x-activity-icon :name="$activity->icon" :color="$activity->color" />
                     <div class="min-w-0">
                         <p class="font-semibold text-slate-800">{{ $activity->name }}</p>
@@ -47,6 +50,9 @@
                 <p class="text-center text-sm text-slate-400">Esta plantilla no tiene actividades.</p>
             @endforelse
         </div>
+        @if ($template->activities->isNotEmpty())
+            <p class="mt-3 text-center text-xs text-slate-400">Arrastra para cambiar el orden. Las horas se recorren según la nueva posición.</p>
+        @endif
     </main>
 
     <div class="fixed inset-x-0 bottom-16 z-30 mx-auto max-w-xl px-4">

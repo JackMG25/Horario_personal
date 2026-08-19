@@ -34,7 +34,12 @@
                         <x-activity-icon :name="$template->icon" :color="$template->color" />
                         <span class="min-w-0 flex-1">
                             <span class="block font-semibold text-slate-800">{{ $template->name }}</span>
-                            <span class="text-sm text-slate-400">{{ $template->activities_count }} {{ $template->activities_count === 1 ? 'actividad' : 'actividades' }}</span>
+                            <span class="text-sm text-slate-400">
+                                {{ $template->activities_count }} {{ $template->activities_count === 1 ? 'actividad' : 'actividades' }}
+                                @if ($template->activities->first()?->formattedStart())
+                                    · desde las {{ $template->activities->first()->formattedStart() }}
+                                @endif
+                            </span>
                         </span>
                         <x-heroicon-o-chevron-right class="h-5 w-5 text-slate-300" />
                     </a>

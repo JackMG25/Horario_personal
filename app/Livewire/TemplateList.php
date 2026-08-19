@@ -25,6 +25,7 @@ class TemplateList extends Component
     {
         return view('livewire.template-list', [
             'templates' => Template::query()
+                ->with(['activities' => fn ($query) => $query->orderBy('position')->orderBy('id')])
                 ->withCount('activities')
                 ->orderBy('name')
                 ->get(),
